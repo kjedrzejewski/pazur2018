@@ -1,0 +1,100 @@
+---
+title: "PAZUR - Tensorflow modelling 1"
+author: "Krzysztof Jędrzejewski"
+date: "22 01 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r package}
+# install.packages("tensorflow")
+library(tensorflow)
+
+# if we don't want Tensorflow to use the default Python installation, we need to specify exact location
+use_python('/usr/local/anaconda3/bin/python')
+```
+
+## Test data generation
+
+```{r data}
+n = 100000;
+
+a0 = 1
+a1 = 2
+a2 = 3
+a3 = 4
+a4 = 5
+
+x1 = rnorm(n, 0, 1)
+x2 = abs(rnorm(n, 0, 1)) + 0.0001
+x3 = rnorm(n, 0, 1)
+
+y = a0 + a1 * x1 + log(a2, x2) / a4 + a4 * (a3 ^ x3)
+```
+
+
+## Model preparation
+
+```{r model_build}
+tf$reset_default_graph()
+
+# Let's load data we have to the graph
+# We're using costants instead of placeholders for simplicity
+x1_tf = tf$constant(x1, dtype = tf$float64)
+x2_tf = tf$constant(x2, dtype = tf$float64)
+x3_tf = tf$constant(x3, dtype = tf$float64)
+y_tf = tf$constant(y, dtype = tf$float64)
+
+# Now, let's define variable nodes
+a0_tf = tf$get_variable('a0', shape = shape(1), dtype = tf$float64, initializer = tf$constant_initializer(7))
+a1_tf = tf$get_variable('a1', shape = shape(1), dtype = tf$float64, initializer = tf$constant_initializer(7))
+a2_tf = tf$get_variable('a2', shape = shape(1), dtype = tf$float64, initializer = tf$constant_initializer(7))
+a3_tf = tf$get_variable('a3', shape = shape(1), dtype = tf$float64, initializer = tf$constant_initializer(7))
+a4_tf = tf$get_variable('a4', shape = shape(1), dtype = tf$float64, initializer = tf$constant_initializer(7))
+
+# And now, let's define our model, ...
+y_tf_model = a0_tf +
+  tf$multiply(a1_tf, x1_tf) + # a1_tf * x1_tf
+  tf$divide(
+    tf$divide(tf$log(a2_tf),tf$log(x2_tf)),
+    a4_tf
+  ) + # log(x2_tf, a2_tf) / a4_tf
+  tf$multiply(a4_tf, tf$pow(a3_tf,x3_tf)) # a4_tf * a3_tf ^ x3_tf
+
+# ..., loss function, ...
+loss_tf = tf$losses$mean_squared_error(y_tf, y_tf_model)
+
+# ..., and optimizer
+# We're using Adam, as it usually works better than vanilla gradient descent
+optimizer = tf$train$AdamOptimizer(learning_rate = 0.5)
+train = optimizer$minimize(loss_tf)
+```
+
+## Model fitting
+
+```{r model_fit}
+# Now, we iteratively look for parameter values that fit data most accurately
+sess = tf$Session()
+
+sess$run(tf$global_variables_initializer()) # initialising variable values
+
+for (i in 0:1000) {
+  cat(
+    sprintf(
+      "[%6d] a0: %1.7f,  a1: %1.7f,  a2: %1.7f,  a3: %1.7f, a4: %1.7f, loss: %2.8f\n",
+      i,
+      sess$run(a0_tf), # reading variable values in the current iteration
+      sess$run(a1_tf),
+      sess$run(a2_tf),
+      sess$run(a3_tf),
+      sess$run(a4_tf),
+      sess$run(loss_tf)
+    )
+  )
+  
+  sess$run(train) # running the next iteration of model fitting
+}
+```

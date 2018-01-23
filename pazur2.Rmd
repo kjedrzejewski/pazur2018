@@ -1,0 +1,190 @@
+---
+title: "PAZUR - Tensorflow modelling 2"
+author: "Krzysztof Jędrzejewski"
+date: "22 01 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading the package
+
+```{r package}
+# install.packages("tensorflow")
+library(dplyr)
+library(tensorflow)
+
+# if we don't want Tensorflow to use the default Python installation, we need to specify exact location
+use_python('/usr/local/anaconda3/bin/python')
+```
+
+## Test data generation
+
+```{r data}
+n = 1000
+
+a = rnorm(n, 4, 1)
+b = rnorm(n, 0, 2)
+
+a_tbl = tibble(a_name = factor(sprintf('a%04d', 1:n)), a_val = a, tmp = 1)
+b_tbl = tibble(b_name = factor(sprintf('b%04d', 1:n)), b_val = b, tmp = 1)
+
+d =  a_tbl %>%
+  left_join(b_tbl, by = 'tmp') %>%
+  select(-tmp) %>%
+  mutate(val = a_val * b_val)
+
+d_test = d %>%
+  select(a_name, b_name, val)
+```
+
+
+## Model preparation
+
+```{r model_build}
+tf$reset_default_graph()
+
+# indices in under which elements
+a_indices = tf$constant(as.integer(d_test$a_name) - 1L) # -1, because in Python first element index is 0, not 1
+b_indices = tf$constant(as.integer(d_test$b_name) - 1L)
+# observed value
+v_tf = tf$constant(d_test$val)
+
+a_tf = tf$get_variable('a', shape = shape(n), dtype = tf$float32, initializer = tf$random_normal_initializer())
+b_tf = tf$get_variable('b', shape = shape(n), dtype = tf$float32, initializer = tf$random_normal_initializer())
+
+a_gathered = tf$gather(a_tf, a_indices)
+b_gathered = tf$gather(b_tf, b_indices)
+
+v_model = tf$multiply(a_gathered, b_gathered)
+
+loss_tf = tf$losses$mean_squared_error(v_tf, v_model)
+
+
+optimizer = tf$train$AdamOptimizer(learning_rate = 0.5)
+
+train = optimizer$minimize(loss_tf)
+```
+
+## Model fitting
+
+```{r model_fit}
+sess = tf$Session()
+
+sess$run(tf$global_variables_initializer())
+
+for (i in 0:300) {
+  a_curr = sess$run(a_tf) # reading variable values in the current iteration
+  b_curr = sess$run(b_tf)
+  
+  cat(
+    sprintf(
+      "[%6d] a_m: %2.8f,  a_sd: %2.8f,  b_m: %2.8f,  b_sd: %2.8f, loss: %2.12f\n",
+      i,
+      mean(a_curr), 
+      sd(a_curr),
+      mean(b_curr),
+      sd(b_curr),
+      sess$run(loss_tf)
+    )
+  )
+  
+  sess$run(train) # running a single training iteration
+}
+
+  cat(
+    sprintf(
+      "[  DATA] a_m: %2.8f,  a_sd: %2.8f,  b_m: %2.8f,  b_sd: %2.8f\n",
+      mean(a), 
+      sd(a),
+      mean(b),
+      sd(b)
+    )
+  )
+```
+
+## Validation of the obtained values
+
+```{r model_valid}
+a_res = sess$run(a_tf)
+b_res = sess$run(b_tf)
+v_res = sess$run(v_model)
+
+# Obtained values of a and b vectors signifficantly differ much from the original values
+hist(a_res-a)
+hist(b_res-b)
+
+# ... but their products are close to the original values
+hist(v_res - d_test$val)
+
+```
+
+Actually, there is infinite number of perfectly fitted values combinations:
+
+* $a' = \gamma\ \times\ a$
+* $b' = \frac{1}{\gamma}\ \times\ b$
+
+## Preparation of the second model
+
+```{r model_fit_2}
+m_tf = tf$nn$moments(a_tf, 0L)
+
+loss2_tf = loss_tf +
+  10 * tf$abs(m_tf[[1]] - 4) + # mean(a) = 4, cause than this component value is the lowest
+  10 * tf$abs(tf$sqrt(m_tf[[2]]) - 1) # sd(a) = 1
+
+train2 = optimizer$minimize(loss2_tf)
+```
+
+```{r model_fit2}
+sess = tf$Session()
+
+sess$run(tf$global_variables_initializer())
+
+for (i in 0:1000) {
+  a_curr = sess$run(a_tf) # reading variable values in current iterations
+  b_curr = sess$run(b_tf)
+  
+  cat(
+    sprintf(
+      "[%6d] a_m: %1.6f,  a_sd: %1.6f,  b_m: %1.6f,  b_sd: %1.6f, loss: %2.6f, loss2: %2.6f\n",
+      i,
+      mean(a_curr), 
+      sd(a_curr),
+      mean(b_curr),
+      sd(b_curr),
+      sess$run(loss_tf),
+      sess$run(loss2_tf)
+    )
+  )
+  
+  sess$run(train2)
+}
+
+  cat(
+    sprintf(
+      "[  DATA] a_m: %2.8f,  a_sd: %2.8f,  b_m: %2.8f,  b_sd: %2.8f\n",
+      mean(a), 
+      sd(a),
+      mean(b),
+      sd(b)
+    )
+  )
+```
+
+## Validation of the second model
+
+```{r model_valid2}
+a_res = sess$run(a_tf)
+b_res = sess$run(b_tf)
+v_res = sess$run(v_model)
+
+# Obtained values of a and b vectors are now quite close to the original values
+hist(a_res-a)
+hist(b_res-b)
+
+# ... and their product too
+hist(v_res - d_test$val)
+```
