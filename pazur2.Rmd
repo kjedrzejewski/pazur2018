@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Loading the package
 
 ```{r package}
-# install.packages("tensorflow")
+# https://tensorflow.rstudio.com/tensorflow/articles/installation.html
 library(dplyr)
 library(tensorflow)
 
@@ -55,7 +55,7 @@ v_tf = tf$constant(d_test$val)
 a_tf = tf$get_variable('a', shape = shape(n), dtype = tf$float32, initializer = tf$random_normal_initializer())
 b_tf = tf$get_variable('b', shape = shape(n), dtype = tf$float32, initializer = tf$random_normal_initializer())
 
-a_gathered = tf$gather(a_tf, a_indices)
+a_gathered = tf$gather(a_tf, a_indices) # a_tf[a_indices]
 b_gathered = tf$gather(b_tf, b_indices)
 
 v_model = tf$multiply(a_gathered, b_gathered)
@@ -143,7 +143,7 @@ sess = tf$Session()
 
 sess$run(tf$global_variables_initializer())
 
-for (i in 0:1000) {
+for (i in 0:300) {
   a_curr = sess$run(a_tf) # reading variable values in current iterations
   b_curr = sess$run(b_tf)
   

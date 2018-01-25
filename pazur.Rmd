@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r package}
-# install.packages("tensorflow")
+# https://tensorflow.rstudio.com/tensorflow/articles/installation.html
 library(tensorflow)
 
 # if we don't want Tensorflow to use the default Python installation, we need to specify exact location
@@ -20,7 +20,7 @@ use_python('/usr/local/anaconda3/bin/python')
 ## Test data generation
 
 ```{r data}
-n = 100000;
+n = 100000
 
 a0 = 1
 a1 = 2
@@ -39,10 +39,11 @@ y = a0 + a1 * x1 + log(a2, x2) / a4 + a4 * (a3 ^ x3)
 ## Model preparation
 
 ```{r model_build}
+# tf is an object from the tensorflow package
 tf$reset_default_graph()
 
 # Let's load data we have to the graph
-# We're using costants instead of placeholders for simplicity
+# We're using constants instead of placeholders for simplicity
 x1_tf = tf$constant(x1, dtype = tf$float64)
 x2_tf = tf$constant(x2, dtype = tf$float64)
 x3_tf = tf$constant(x3, dtype = tf$float64)
@@ -82,6 +83,7 @@ sess = tf$Session()
 sess$run(tf$global_variables_initializer()) # initialising variable values
 
 for (i in 0:1000) {
+  # printing progress to console
   cat(
     sprintf(
       "[%6d] a0: %1.7f,  a1: %1.7f,  a2: %1.7f,  a3: %1.7f, a4: %1.7f, loss: %2.8f\n",
@@ -95,6 +97,7 @@ for (i in 0:1000) {
     )
   )
   
-  sess$run(train) # running the next iteration of model fitting
+  # actual training happens here
+  sess$run(train)
 }
 ```
